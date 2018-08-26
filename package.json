@@ -1,0 +1,36 @@
+{
+  "name": "lambda-user-service",
+  "version": "1.0.0",
+  "description": "",
+  "main": "handler.js",
+  "dependencies": {
+    "aws-sdk": "^2.300.0"
+  },
+  "devDependencies": {
+    "aws-sdk-mock": "^4.1.0",
+    "babel-eslint": "^8.2.6",
+    "eslint": "^5.4.0",
+    "eslint-config-airbnb-base": "^13.1.0",
+    "eslint-plugin-import": "^2.14.0",
+    "jest": "^23.5.0"
+  },
+  "scripts": {
+    "lint": "./node_modules/.bin/eslint .",
+    "pretest": "npm run lint",
+    "test": "./node_modules/.bin/jest --coverage .",
+    "test:watch": "./node_modules/.bin/jest --watch .",
+    "predeploy": "npm run lint",
+    "deploy": "serverless deploy",
+    "remove": "serverless remove"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nilfactor/lambda-user-service.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/nilfactor/lambda-user-service/issues"
+  },
+  "homepage": "https://github.com/nilfactor/lambda-user-service#readme"
+}

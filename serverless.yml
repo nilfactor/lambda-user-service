@@ -1,0 +1,58 @@
+# Welcome to Serverless!
+#
+# This file is the main config file for your service.
+# It's very minimal at this point and uses default values.
+# You can always add more config options for more control.
+# We've included some commented out config examples here.
+# Just uncomment any of them to get that config option.
+#
+# For full config options, check the docs:
+#    docs.serverless.com
+#
+# Happy Coding!
+
+service: lambda-user-service # NOTE: update this with your service name
+
+# You can pin your service to only deploy with a specific Serverless version
+# Check out our docs for more details
+# frameworkVersion: "=X.X.X"
+custom:
+  config:
+    concurrency: 5
+    dynamodb-name: lambda-user-table
+    memory: 256
+
+provider:
+  name: aws
+  runtime: nodejs8.10
+  region: us-east-1
+  stage: dev
+  memorySize: ${self:custom.config.memory}
+  iamRoleStatements:
+    - Effect: "Allow"
+      Action:
+        - "dynamodb:PutItem"
+      Resource:
+        - "arn:aws:dynamodb:${self:provider.region}:*:table/${self:custom.config.dynamodb-name}"
+    - Effect: "Allow"
+      Action:
+        - sqs:DeleteMessage
+        - sqs:ReceiveMessage
+        - sqs:GetQueueAttributes
+      Resource:
+        - "arn:aws:sqs:${self:provider.region}:*:${self:custom.config.sqs-queue}"
+
+# you can add packaging information here
+package:
+  exclude:
+    - node_modules/**
+
+functions:
+  user-service:
+    handler: user-creation.run
+    description: Event Service Function, process events store them in dynamodb
+    reservedConcurrency: ${self:custom.config.concurrency}
+  user-get:
+    handler: user-get.get
+    description: Lambda Function to get a User or Users
+    reservedConcurrency: ${self.custom.config.concurrency}
