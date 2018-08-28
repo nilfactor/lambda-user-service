@@ -1,4 +1,5 @@
 const aws = require('aws-sdk');
+const encrypt = require('./lib/encrypt');
 const log = require('./lib/log');
 const verifyFields = require('./lib/verify');
 
@@ -13,7 +14,6 @@ const requiredFields = {
     username: 'string',
     email: 'string',
     firstName: 'string',
-    password: 'string',
     dateCreated: 'number',
     dateUpdated: 'number',
     active: 'boolean',
@@ -74,6 +74,14 @@ module.exports.run = async (event) => {
     // assume this is a new user, verify account uniquness
     if (data.dateCreated === data.dateUpdated) {
         await checkUserUnique(data);
+        if (typeof data.password !== 'string' || !data.password) {
+            throw new Error('password required');
+        }
+    }
+
+    /* istanbul ignore next */
+    if (typeof data.password === 'string') {
+        data.password = encrypt(data.password);
     }
 
     const params = {

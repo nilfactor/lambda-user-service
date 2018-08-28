@@ -1,11 +1,14 @@
 const aws = require('aws-sdk-mock');
 const realAws = require('aws-sdk');
+const encrypt = require('../lib/encrypt');
 const object = require('../user-creation');
 
 const TableName = 'user-service-table';
 
 aws.setSDKInstance(realAws);
 process.env.NO_LAMBDA_LOG = true;
+
+jest.mock('../lib/encrypt');
 
 describe('user-creation', async () => {
     test('gives an error when data does not meet expected', async () => {
@@ -102,6 +105,37 @@ describe('user-creation', async () => {
         aws.restore('DynamoDB.DocumentClient', 'query');
     });
 
+    test('gives an error when no password supplied for new user', async () => {
+        const data = {
+            username: 'buser',
+            firstName: 'Bob',
+            lastName: 'User',
+            email: 'buser@example.com',
+            dateCreated: 20180826095612,
+            dateUpdated: 20180826095612,
+            active: true,
+        };
+
+        const expectedError = new Error('password required');
+        const expectedParams = {
+            TableName,
+            KeyConditionExpression: 'email = :email or username = :username',
+            ExpressionAttributeValues: {
+                ':email': data.email,
+                ':username': data.username,
+            },
+        };
+
+        const mockClient = async (params) => {
+            expect(params).toEqual(expectedParams);
+            return { Items: [] };
+        };
+
+        aws.mock('DynamoDB.DocumentClient', 'query', mockClient);
+        await expect(object.run({ body: JSON.stringify(data) })).rejects.toThrowError(expectedError);
+        aws.restore('DynamoDB.DocumentClient', 'query');
+    });
+
     test('gives an error when dynamodb fails put', async () => {
         const data = {
             username: 'buser',
@@ -160,6 +194,8 @@ describe('user-creation', async () => {
             expect(params.Item).toEqual(data);
             return params;
         };
+
+        encrypt.mockReturnValue(data.password);
 
         aws.mock('DynamoDB.DocumentClient', 'query', () => true);
         aws.mock('DynamoDB.DocumentClient', 'put', mockClient);

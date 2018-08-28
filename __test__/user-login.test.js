@@ -1,13 +1,20 @@
 const aws = require('aws-sdk-mock');
 const realAws = require('aws-sdk');
-const object = require('../user-get');
+const encrypt = require('../lib/encrypt');
+const object = require('../user-login');
 
 const TableName = 'user-service-table';
 
 aws.setSDKInstance(realAws);
 process.env.NO_LAMBDA_LOG = true;
 
-describe('user-get', async () => {
+jest.mock('../lib/encrypt');
+
+afterAll(() => {
+    encrypt.mockReset();
+});
+
+describe('user-creation', async () => {
     test('gives an error when data does not meet expected', async () => {
         const expectedError = new Error('event not as expected');
         await expect(object.run()).rejects.toThrowError(expectedError);
@@ -20,9 +27,9 @@ describe('user-get', async () => {
         await expect(object.run({ body: data })).rejects.toThrowError(expectedError);
     });
 
-    test('gives an error when search key is missing', async () => {
+    test('gives an error when field is missing', async () => {
         const data = {
-            active: true,
+            username: 'buser',
         };
 
         const expectedError = new Error(
@@ -32,34 +39,13 @@ describe('user-get', async () => {
         await expect(object.run({ body: JSON.stringify(data) })).rejects.toThrowError(expectedError);
     });
 
-    test('gives an error when dynamodb fails scan', async () => {
-        const data = {
-            username: '*',
-        };
-
-        const expectedError = new Error('dynamo db error');
-        const expectedParams = {
-            TableName,
-            FilterExpression: 'active = :a',
-            ExpressionAttributeValues: { ':a': true },
-        };
-
-        const mockClient = async (params) => {
-            expect(params).toEqual(expectedParams);
-            throw new Error('simulated scan error');
-        };
-
-        aws.mock('DynamoDB.DocumentClient', 'scan', mockClient);
-        await expect(object.run({ body: JSON.stringify(data) })).rejects.toThrowError(expectedError);
-        aws.restore('DynamoDB.DocumentClient', 'scan');
-    });
-
     test('gives an error when dynamodb fails query', async () => {
         const data = {
-            username: 'tuser',
+            username: 'buser',
+            password: 'bobtestuser',
         };
 
-        const expectedError = new Error('dynamo db error');
+        const expectedError = new Error('dynamodb error');
         const expectedParams = {
             TableName,
             KeyConditionExpression: 'username = :username',
@@ -70,7 +56,7 @@ describe('user-get', async () => {
 
         const mockClient = async (params) => {
             expect(params).toEqual(expectedParams);
-            throw new Error('simulated query error');
+            throw new Error('simulated error');
         };
 
         aws.mock('DynamoDB.DocumentClient', 'query', mockClient);
@@ -78,57 +64,14 @@ describe('user-get', async () => {
         aws.restore('DynamoDB.DocumentClient', 'query');
     });
 
-    test('works as expected when returning all users is empty', async () => {
+    test('bad password returns object as expected', async () => {
         const data = {
-            username: '*',
+            username: 'buser',
+            password: 'bobtestuser',
         };
 
-        const expectedParams = {
-            TableName,
-            FilterExpression: 'active = :a',
-            ExpressionAttributeValues: { ':a': true },
-        };
-
-        const expectedResult = [];
-
-        const mockClient = async (params) => {
-            expect(params).toEqual(expectedParams);
-            return {};
-        };
-
-        aws.mock('DynamoDB.DocumentClient', 'scan', mockClient);
-        const result = await object.run({ body: JSON.stringify(data) });
-        expect(result).toEqual(expectedResult);
-        aws.restore('DynamoDB.DocumentClient', 'scan');
-    });
-
-    test('works as expected when returning all users', async () => {
-        const data = {
-            username: '*',
-        };
-
-        const expectedParams = {
-            TableName,
-            FilterExpression: 'active = :a',
-            ExpressionAttributeValues: { ':a': true },
-        };
-
-        const expectedResult = ['one', 'two'];
-
-        const mockClient = async (params) => {
-            expect(params).toEqual(expectedParams);
-            return { Items: expectedResult };
-        };
-
-        aws.mock('DynamoDB.DocumentClient', 'scan', mockClient);
-        const result = await object.run({ body: JSON.stringify(data) });
-        expect(result).toBe(expectedResult);
-        aws.restore('DynamoDB.DocumentClient', 'scan');
-    });
-
-    test('works as expected when returning a user is empty', async () => {
-        const data = {
-            username: 'tuser',
+        const expectedResult = {
+            error: 'user not found or invalid password',
         };
 
         const expectedParams = {
@@ -139,11 +82,42 @@ describe('user-get', async () => {
             },
         };
 
-        const expectedResult = [];
+        const mockClient = async (params) => {
+            expect(params).toEqual(expectedParams);
+            return {
+                Items: [data],
+            };
+        };
+
+        encrypt.mockReturnValue('test');
+
+        aws.mock('DynamoDB.DocumentClient', 'query', mockClient);
+        const result = await object.run({ body: JSON.stringify(data) });
+        expect(result).toEqual(expectedResult);
+        aws.restore('DynamoDB.DocumentClient', 'query');
+    });
+
+    test('user not found returns object as expected', async () => {
+        const data = {
+            username: 'buser',
+            password: 'bobtestuser',
+        };
+
+        const expectedResult = {
+            error: 'user not found or invalid password',
+        };
+
+        const expectedParams = {
+            TableName,
+            KeyConditionExpression: 'username = :username',
+            ExpressionAttributeValues: {
+                ':username': data.username,
+            },
+        };
 
         const mockClient = async (params) => {
             expect(params).toEqual(expectedParams);
-            return { };
+            return { test: true };
         };
 
         aws.mock('DynamoDB.DocumentClient', 'query', mockClient);
@@ -152,9 +126,10 @@ describe('user-get', async () => {
         aws.restore('DynamoDB.DocumentClient', 'query');
     });
 
-    test('works as expected when returning a user', async () => {
+    test('works as expected if user exists and password matches', async () => {
         const data = {
-            username: 'tuser',
+            username: 'buser',
+            password: 'bobtestuser',
         };
 
         const expectedParams = {
@@ -165,16 +140,20 @@ describe('user-get', async () => {
             },
         };
 
-        const expectedResult = ['tuser'];
-
         const mockClient = async (params) => {
             expect(params).toEqual(expectedParams);
-            return { Items: expectedResult };
+            return {
+                Items: [
+                    data,
+                ],
+            };
         };
+
+        encrypt.mockReturnValue(data.password);
 
         aws.mock('DynamoDB.DocumentClient', 'query', mockClient);
         const result = await object.run({ body: JSON.stringify(data) });
-        expect(result).toBe(expectedResult);
+        expect(result).toBe(data);
         aws.restore('DynamoDB.DocumentClient', 'query');
     });
 });
