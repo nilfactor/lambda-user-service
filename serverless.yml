@@ -53,6 +53,10 @@ functions:
     description: Event Service Function, process events store them in dynamodb
     reservedConcurrency: ${self:custom.config.concurrency}
   user-get:
-    handler: user-get.get
+    handler: user-get.run
     description: Lambda Function to get a User or Users
+    reservedConcurrency: ${self.custom.config.concurrency}
+  user-login:
+    handler: user-login.run
+    description: Lambda Function to allow users to login
     reservedConcurrency: ${self.custom.config.concurrency}

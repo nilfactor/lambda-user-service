@@ -19,7 +19,7 @@
     "pretest": "npm run lint",
     "test": "./node_modules/.bin/jest --coverage .",
     "test:watch": "./node_modules/.bin/jest --watch .",
-    "predeploy": "npm run lint",
+    "predeploy": "npm run lint && npm run test",
     "deploy": "serverless deploy",
     "remove": "serverless remove"
   },
